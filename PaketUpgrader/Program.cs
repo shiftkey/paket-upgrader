@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using Mono.Options;
 using System.IO;
 using System.Linq;
+using System.Diagnostics;
 
 namespace PaketUpgrader
 {
@@ -97,46 +98,90 @@ namespace PaketUpgrader
 
             if (o.Repositories.Any())
             {
-                var repositories = o.Repositories.Select(async r =>
+                Console.WriteLine($"Found {o.Repositories.Length} entries in file");
+                Console.WriteLine();
+
+                try
                 {
-                    var parts = r.Split('/');
-                    var owner = parts[0];
-                    var name = parts[1];
-
-                    var repo = await client.Repository.Get(owner, name);
-
-                    if (!repo.Fork || o.IncludeForks)
+                    var lookup = o.Repositories.Select(async r =>
                     {
-                        return upgrader.Run(repo, o.SubmitPullRequests);
-                    }
-                    else
-                    {
-                        return Task.CompletedTask;
-                    }
-                }).ToArray();
+                        var parts = r.Split('/');
+                        var owner = parts[0];
+                        var name = parts[1];
+                        try
+                        {
+                            return await client.Repository.Get(owner, name);
+                        }
+                        catch
+                        {
+#if DEBUG
+                            if (!Debugger.IsAttached)
+                            {
+                                Debugger.Launch();
+                            }
+#endif
+                            return null;
+                        }
+                    });
 
-                Task.WaitAll(repositories);
+                    var allRepos = Task.WhenAll(lookup).Result;
+
+                    var repos = allRepos
+                        .Where(r => r != null)
+                        .Select(r =>
+                        {
+                            if (!r.Fork || o.IncludeForks)
+                            {
+                                return r;
+                            }
+                            else
+                            {
+                                return null;
+                            }
+                        })
+                        .Where(r => r != null);
+
+                    var tasks = repos.Select(r => upgrader.Run(r, o.SubmitPullRequests)).ToArray();
+
+                    Task.WaitAll(tasks);
+
+                }
+                catch (Exception ex)
+                {
+#if DEBUG
+                    if (!Debugger.IsAttached)
+                    {
+                        Debugger.Launch();
+                    }
+#else
+                    throw ex;
+#endif
+                }
             }
             else if (!string.IsNullOrWhiteSpace(o.Account))
             {
                 var user = client.User.Get(o.Account).Result;
                 var type = user.Type == AccountType.User ? "user" : "organization";
 
-                var repos = client.Repository.GetAllForUser(o.Account, new ApiOptions { PageSize = 100 }).Result;
+                var allRepos = client.Repository.GetAllForUser(o.Account, new ApiOptions { PageSize = 100 }).Result;
 
-                Console.WriteLine($"Found {repos.Count} repositories under the {o.Account} {type}");
-                
-                var tasks = repos.Select(r =>
+
+                var repos = allRepos.Select(r =>
                 {
                     if (!r.Fork || o.IncludeForks)
                     {
-                        return upgrader.Run(r, o.SubmitPullRequests);
+                        return r;
                     }
                     else
                     {
-                        return Task.CompletedTask;
+                        return null;
                     }
-                }).ToArray();
+                }).Where(r => r != null).ToArray();
+
+                Console.WriteLine($"Found {repos.Length} repositories under the {o.Account} {type}");
+                Console.WriteLine();
+
+                var tasks = repos.Select(r => upgrader.Run(r, o.SubmitPullRequests)).ToArray();
 
                 Task.WaitAll(tasks);
             }

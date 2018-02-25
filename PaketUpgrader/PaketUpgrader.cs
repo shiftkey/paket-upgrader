@@ -41,11 +41,9 @@ namespace PaketUpgrader
 
         private async Task<PaketUpgrade> Validate(Repository repository)
         {
-            var defaultBranch = repository.DefaultBranch;
-
             try
             {
-                var contents = await client.Repository.Content.GetAllContentsByRef(repository.Id, ".paket", defaultBranch);
+                var contents = await client.Repository.Content.GetAllContentsByRef(repository.Id, ".paket", repository.DefaultBranch);
                 var executables = contents.Where(c => c.Path.EndsWith(".exe"));
                 foreach (var executable in executables)
                 {
