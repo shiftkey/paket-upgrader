@@ -86,7 +86,7 @@ namespace PaketUpgrader
 
             if (!submitPullRequest)
             {
-                Console.WriteLine($"Skipping operation for {owner}/{name} as --submit-pull-request  was not set.");
+                Console.WriteLine($"Skipping operation for {owner}/{name}, pass --submit-pull-request to generate the pull request.");
                 return;
             }
 

@@ -17,6 +17,11 @@ namespace PaketUpgrader
 
     class Options
     {
+        public Options()
+        {
+            Repositories = Array.Empty<string>();
+        }
+
         public string Token { get; set; }
         public string[] Repositories { get; set; }
         public string Account { get; set; }
@@ -115,9 +120,12 @@ namespace PaketUpgrader
             }
             else if (!string.IsNullOrWhiteSpace(options.Account))
             {
-                var repos = await client.Repository.GetAllForUser(options.Account);
+                var repos = await client.Repository.GetAllForUser(options.Account, new ApiOptions { PageSize = 100 });
 
                 var projects = repos.Select(r => r.FullName).ToArray();
+
+                Console.WriteLine($"Found {projects.Length} repositories under the {options.Account} organization");
+
                 foreach (var project in projects)
                 {
                     await upgrader.Run(project, options.IncludeForks, options.SubmitPullRequests);
