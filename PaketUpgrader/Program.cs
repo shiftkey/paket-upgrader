@@ -701,13 +701,13 @@ namespace PaketUpgrader
             }
             else
             {
-                Console.WriteLine($"No open pull request found, gotta upgrade {owner}/{name}");
-
                 if (!performUpgrade)
                 {
-                    Console.WriteLine($"Skipping actual upgrade step for now");
+                    Console.WriteLine($"Need to upgrade {owner}/{name} but this has been disabled.");
                     return;
                 }
+
+                Console.WriteLine($"Submitting a pull request to {owner}/{name}...");
 
                 var repository = await FindRepositoryToSubmitPullRequestFrom(owner, name);
                 if (repository == null)
@@ -747,7 +747,7 @@ The work to update Paket in the wild is occurring here: https://github.com/fspro
                 var updatesPaketToLatestVersion = files.FirstOrDefault(f =>
                     f.FileName == ".paket/paket.exe" && f.Sha == updatedPaketSha || f.FileName == ".paket/paket.bootstrapper.exe" && f.Sha == updatedPaketSha);
 
-                if (updatesKeyFiles != null)
+                if (updatesPaketToLatestVersion != null)
                 {
                     return pullRequest;
                 }
