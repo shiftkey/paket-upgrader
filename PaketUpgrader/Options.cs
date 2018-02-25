@@ -14,5 +14,6 @@ namespace PaketUpgrader
         public string Account { get; set; }
         public bool IncludeForks { get; internal set; }
         public bool SubmitPullRequests { get; internal set; }
+        public bool Debug { get; internal set; }
     }
 }

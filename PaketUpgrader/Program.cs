@@ -45,8 +45,9 @@ namespace PaketUpgrader
                 { "t|token=", "a personal access token with public_repo scope to be used to interact with the GitHub API", n => o.Token = n },
                 { "f|file=", "a file containing a list of 'owner/repo' values, one on each line", n => o.Repositories = TryParseFile(n) },
                 { "u|user=", "a user or organization on GitHub to scan for problem repositories", n => o.Account = n },
-                { "include-forks", "also include forked repositories when scanning for repositories to update", (bool n) => o.IncludeForks = true },
-                { "submit-pull-request", "actually submit a PR to each of the repositories which are using an old version of Paket", (bool n) => o.SubmitPullRequests = true },
+                { "include-forks", "also include forked repositories when scanning for repositories to update", n => o.IncludeForks = true },
+                { "submit-pull-request", "actually submit a PR to each of the repositories which are using an old version of Paket", n => o.SubmitPullRequests = true },
+                { "debug", "emit additional tracing about what's happening underneath", n => o.Debug = true },
                 { "h|help", "show this message and exit", h => shouldShowHelp = h != null },
             };
 
@@ -136,7 +137,7 @@ namespace PaketUpgrader
                         })
                         .Where(r => r != null);
 
-                    var tasks = repos.Select(r => upgrader.Run(r, o.SubmitPullRequests)).ToArray();
+                    var tasks = repos.Select(r => upgrader.Run(r, o.SubmitPullRequests, o.Debug)).ToArray();
 
                     Task.WaitAll(tasks);
 
@@ -155,12 +156,7 @@ namespace PaketUpgrader
             }
             else if (!string.IsNullOrWhiteSpace(o.Account))
             {
-                var user = client.User.Get(o.Account).Result;
-                var type = user.Type == AccountType.User ? "user" : "organization";
-
                 var allRepos = client.Repository.GetAllForUser(o.Account, new ApiOptions { PageSize = 100 }).Result;
-
-
                 var repos = allRepos.Select(r =>
                 {
                     if (!r.Fork || o.IncludeForks)
@@ -173,10 +169,7 @@ namespace PaketUpgrader
                     }
                 }).Where(r => r != null).ToArray();
 
-                Console.WriteLine($"Found {repos.Length} repositories under the {o.Account} {type}");
-                Console.WriteLine();
-
-                var tasks = repos.Select(r => upgrader.Run(r, o.SubmitPullRequests)).ToArray();
+                var tasks = repos.Select(r => upgrader.Run(r, o.SubmitPullRequests, o.Debug)).ToArray();
 
                 Task.WaitAll(tasks);
             }

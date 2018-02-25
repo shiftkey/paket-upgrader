@@ -19,7 +19,7 @@ namespace PaketUpgrader
             this.client = client;
         }
 
-        public async Task Run(Repository repository, bool submitPullRequest)
+        public async Task Run(Repository repository, bool submitPullRequest, bool debug = false)
         {
             var owner = repository.Owner.Login;
             var name = repository.Name;
@@ -27,13 +27,16 @@ namespace PaketUpgrader
             var result = await Validate(repository);
             if (result == PaketUpgrade.PaketNotFound)
             {
-                Console.WriteLine($"Skipping {repository.FullName} as Paket wasn't found");
+                if (debug)
+                {
+                    Console.WriteLine($"Ignoring {repository.FullName} as Paket wasn't found in the repository");
+                }
                 return;
             }
 
             if (result == PaketUpgrade.UpToDate)
             {
-                Console.WriteLine($"Skipping {repository.FullName} as it appears to be up-to-date");
+                Console.WriteLine($"{repository.FullName} appears to be up-to-date");
                 return;
             }
 
@@ -73,34 +76,42 @@ namespace PaketUpgrader
             var openPullRequest = await HasOpenPullRequest(owner, name);
             if (openPullRequest != null)
             {
-                Console.WriteLine($"{owner}/{name} has an open pull request #{openPullRequest.Number}, skipping...");
+                Console.WriteLine($"{owner}/{name} has an open pull request #{openPullRequest.Number}");
                 return;
             }
 
             if (!submitPullRequest)
             {
-                Console.WriteLine($"Skipping {owner}/{name}, pass --submit-pull-request to generate the pull request.");
+                Console.WriteLine($"{owner}/{name} requires update, but not performed");
                 return;
             }
-
-            Console.WriteLine($"Submitting a pull request to {owner}/{name}...");
 
             var repository = await FindRepositoryToSubmitPullRequestFrom(owner, name);
             if (repository == null)
             {
-                Console.WriteLine($"Couldn't find a repository to use for upgrading. WTF?");
+                Console.WriteLine($" - Couldn't find a repository to use for upgrading {owner}/{name}");
                 return;
             }
 
             var reference = await CreateNewReferenceWithPatch(repository);
-            if (reference != null)
+            if (reference == null)
             {
-                var branch = reference.Ref.Replace("refs/heads/", "");
+                Console.WriteLine($" - Unable to create a new reference in th erepository {repository.FullName}");
+                return;
+            }
 
-                var headRef = repository.Fork ? $"{repository.Owner.Login}:{branch}" : branch;
+            var pullRequest = await CreatePullRequest(owner, name, repository, reference);
+            Console.WriteLine($" - {owner}/{name} now has PR {pullRequest.Number} opened");
+        }
 
-                var newPullRequest = new NewPullRequest("Update paket to address TLS deprecation", headRef, repository.DefaultBranch);
-                newPullRequest.Body = @":wave: GitHub disabled TLS 1.0 and TLS 1.1 on February 22nd, which affected Paket and needs to be updated to 5.142 or later.
+        private async Task<PullRequest> CreatePullRequest(string owner, string name, Repository repository, Reference reference)
+        {
+            var branch = reference.Ref.Replace("refs/heads/", "");
+
+            var headRef = repository.Fork ? $"{repository.Owner.Login}:{branch}" : branch;
+
+            var newPullRequest = new NewPullRequest("Update paket to address TLS deprecation", headRef, repository.DefaultBranch);
+            newPullRequest.Body = @":wave: GitHub disabled TLS 1.0 and TLS 1.1 on February 22nd, which affected Paket and needs to be updated to 5.142 or later.
 
 You can read more about this on the [GitHub Engineering blog](https://githubengineering.com/crypto-removal-notice/).
 
@@ -108,9 +119,8 @@ The update to Paket is explained here: https://github.com/fsprojects/Paket/pull/
 
 The work to update Paket in the wild is occurring here: https://github.com/fsprojects/Paket/issues/3068";
 
-                var pullRequest = await client.PullRequest.Create(owner, name, newPullRequest);
-            }
-
+            var pullRequest = await client.PullRequest.Create(owner, name, newPullRequest);
+            return pullRequest;
         }
 
         async Task<PullRequest> HasOpenPullRequest(string owner, string name)
