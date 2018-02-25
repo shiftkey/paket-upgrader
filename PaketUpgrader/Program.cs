@@ -97,16 +97,48 @@ namespace PaketUpgrader
 
             if (o.Repositories.Any())
             {
-                Task.WaitAll(o.Repositories.Select(r => upgrader.Run(r, o.IncludeForks, o.SubmitPullRequests)).ToArray());
+                var repositories = o.Repositories.Select(async r =>
+                {
+                    var parts = r.Split('/');
+                    var owner = parts[0];
+                    var name = parts[1];
+
+                    var repo = await client.Repository.Get(owner, name);
+
+                    if (!repo.Fork || o.IncludeForks)
+                    {
+                        return upgrader.Run(repo, o.SubmitPullRequests);
+                    }
+                    else
+                    {
+                        return Task.CompletedTask;
+                    }
+                }).ToArray();
+
+                Task.WaitAll(repositories);
             }
             else if (!string.IsNullOrWhiteSpace(o.Account))
             {
+                var user = client.User.Get(o.Account).Result;
+                var type = user.Type == AccountType.User ? "user" : "organization";
+
                 var repos = client.Repository.GetAllForUser(o.Account, new ApiOptions { PageSize = 100 }).Result;
-                var projects = repos.Select(r => r.FullName).ToArray();
 
-                Console.WriteLine($"Found {projects.Length} repositories under the {o.Account} organization");
+                Console.WriteLine($"Found {repos.Count} repositories under the {o.Account} {type}");
+                
+                var tasks = repos.Select(r =>
+                {
+                    if (!r.Fork || o.IncludeForks)
+                    {
+                        return upgrader.Run(r, o.SubmitPullRequests);
+                    }
+                    else
+                    {
+                        return Task.CompletedTask;
+                    }
+                }).ToArray();
 
-                Task.WaitAll(projects.Select(r => upgrader.Run(r, o.IncludeForks, o.SubmitPullRequests)).ToArray());
+                Task.WaitAll(tasks);
             }
             else
             {

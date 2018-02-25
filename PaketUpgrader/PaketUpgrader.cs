@@ -18,43 +18,34 @@ namespace PaketUpgrader
             this.client = client;
         }
 
-        public async Task Run(string ownerAndName, bool includeForks, bool submitPullRequest)
+        public async Task Run(Repository repository, bool submitPullRequest)
         {
-            var parts = ownerAndName.Split('/');
-            var owner = parts[0];
-            var name = parts[1];
+            var owner = repository.Owner.Login;
+            var name = repository.Name;
 
-            var result = await Validate(owner, name);
-
-            if (result == PaketUpgrade.NothingToDo)
+            var result = await Validate(repository);
+            if (result == PaketUpgrade.PaketNotFound)
             {
-                Console.WriteLine($"Nothing to do for {ownerAndName}");
+                Console.WriteLine($"Skipping {repository.FullName} as Paket wasn't found");
                 return;
             }
 
-            if (includeForks && result == PaketUpgrade.RepositoryIsFork)
+            if (result == PaketUpgrade.UpToDate)
             {
-                Console.WriteLine($"Skipping {ownerAndName} as it is a fork");
+                Console.WriteLine($"Skipping {repository.FullName} as it appears to be up-to-date");
                 return;
             }
 
             await PerformUpgrade(owner, name, submitPullRequest);
         }
 
-        private async Task<PaketUpgrade> Validate(string owner, string name)
+        private async Task<PaketUpgrade> Validate(Repository repository)
         {
-            var repository = await client.Repository.Get(owner, name);
-
-            if (repository.Fork)
-            {
-                return PaketUpgrade.RepositoryIsFork;
-            }
-
             var defaultBranch = repository.DefaultBranch;
 
             try
             {
-                var contents = await client.Repository.Content.GetAllContentsByRef(owner, name, ".paket", defaultBranch);
+                var contents = await client.Repository.Content.GetAllContentsByRef(repository.Id, ".paket", defaultBranch);
                 var executables = contents.Where(c => c.Path.EndsWith(".exe"));
                 foreach (var executable in executables)
                 {
@@ -69,10 +60,13 @@ namespace PaketUpgrader
                     }
                 }
             }
-            catch { }
+            catch
+            {
+                return PaketUpgrade.PaketNotFound;
+            }
 
 
-            return PaketUpgrade.NothingToDo;
+            return PaketUpgrade.UpToDate;
         }
 
         async Task PerformUpgrade(string owner, string name, bool submitPullRequest)

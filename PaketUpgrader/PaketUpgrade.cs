@@ -2,8 +2,8 @@
 {
     public enum PaketUpgrade
     {
+        PaketNotFound,
         UpgradeNeeded,
-        NothingToDo,
-        RepositoryIsFork
+        UpToDate
     }
 }

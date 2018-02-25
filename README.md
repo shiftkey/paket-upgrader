@@ -23,3 +23,15 @@ Options:
                                which are using an old version of Paket
   -h, --help                 show this message and exit
 ```
+
+## Usage
+
+Two supported scenarios are:
+
+  - provide a file containing a list of repositories, one per line
+  - specify an user/organization account on GitHub to scan
+
+
+```
+
+
