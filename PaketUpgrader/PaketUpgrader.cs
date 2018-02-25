@@ -1,9 +1,10 @@
 ﻿using Octokit;
 using System;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Reflection;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
 
 namespace PaketUpgrader
 {
@@ -11,7 +12,7 @@ namespace PaketUpgrader
     {
         private GitHubClient client;
 
-        private string updatedPaketSha = "b98e000b232408fe0a21730e88f89755f0d7a68c";
+        private List<string> updatedPaketSha = new List<string> { "b98e000b232408fe0a21730e88f89755f0d7a68c" };
 
         public PaketUpgrader(GitHubClient client)
         {
@@ -99,7 +100,7 @@ namespace PaketUpgrader
                 var headRef = repository.Fork ? $"{repository.Owner.Login}:{branch}" : branch;
 
                 var newPullRequest = new NewPullRequest("Update paket to address TLS deprecation", headRef, repository.DefaultBranch);
-                newPullRequest.Body = @":wave: GitHub disabled TLS 1.0 and TLS 1.1 on February 22nd, which affected Paket.
+                newPullRequest.Body = @":wave: GitHub disabled TLS 1.0 and TLS 1.1 on February 22nd, which affected Paket and needs to be updated to 5.142 or later.
 
 You can read more about this on the [GitHub Engineering blog](https://githubengineering.com/crypto-removal-notice/).
 

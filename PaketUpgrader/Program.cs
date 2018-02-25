@@ -1,11 +1,11 @@
-﻿using Octokit;
+﻿using Mono.Options;
+using Octokit;
 using System;
-using System.Threading.Tasks;
 using System.Collections.Generic;
-using Mono.Options;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace PaketUpgrader
 {
@@ -114,12 +114,7 @@ namespace PaketUpgrader
                         }
                         catch
                         {
-#if DEBUG
-                            if (!Debugger.IsAttached)
-                            {
-                                Debugger.Launch();
-                            }
-#endif
+                            Console.WriteLine($"Unable to find repository '{r}', skipping...");
                             return null;
                         }
                     });
