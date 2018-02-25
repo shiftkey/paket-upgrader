@@ -12,7 +12,7 @@ namespace PaketUpgrader
     {
         private GitHubClient client;
 
-        private List<string> updatedPaketSha = new List<string> { "b98e000b232408fe0a21730e88f89755f0d7a68c" };
+        private List<string> supportedPaketVersions = new List<string> { "b98e000b232408fe0a21730e88f89755f0d7a68c" };
 
         public PaketUpgrader(GitHubClient client)
         {
@@ -48,12 +48,12 @@ namespace PaketUpgrader
                 var executables = contents.Where(c => c.Path.EndsWith(".exe"));
                 foreach (var executable in executables)
                 {
-                    if (executable.Path.EndsWith("paket.exe") && executable.Sha != updatedPaketSha)
+                    if (executable.Path.EndsWith("paket.exe") && !supportedPaketVersions.Contains(executable.Sha))
                     {
                         return PaketUpgrade.UpgradeNeeded;
                     }
 
-                    if (executable.Path.EndsWith("paket.bootstrapper.exe") && executable.Sha != updatedPaketSha)
+                    if (executable.Path.EndsWith("paket.bootstrapper.exe") && !supportedPaketVersions.Contains(executable.Sha))
                     {
                         return PaketUpgrade.UpgradeNeeded;
                     }
@@ -121,7 +121,8 @@ The work to update Paket in the wild is occurring here: https://github.com/fspro
             {
                 var files = await client.PullRequest.Files(owner, name, pullRequest.Number);
                 var updatesPaketToLatestVersion = files.FirstOrDefault(f =>
-                    f.FileName == ".paket/paket.exe" && f.Sha == updatedPaketSha || f.FileName == ".paket/paket.bootstrapper.exe" && f.Sha == updatedPaketSha);
+                    f.FileName == ".paket/paket.exe" && supportedPaketVersions.Contains(f.Sha)
+                    || f.FileName == ".paket/paket.bootstrapper.exe" && supportedPaketVersions.Contains(f.Sha));
 
                 if (updatesPaketToLatestVersion != null)
                 {

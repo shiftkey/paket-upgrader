@@ -141,7 +141,7 @@ namespace PaketUpgrader
                     Task.WaitAll(tasks);
 
                 }
-                catch (Exception ex)
+                catch
                 {
 #if DEBUG
                     if (!Debugger.IsAttached)
