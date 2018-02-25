@@ -109,7 +109,7 @@ namespace PaketUpgrader
                 var repository = await FindRepositoryToSubmitPullRequestFrom(owner, name);
                 if (repository == null)
                 {
-                    Console.WriteLine($"Couldn't find a repository to use for fixing this. WTF?");
+                    Console.WriteLine($"Couldn't find a repository to use for upgrading. WTF?");
                     return;
                 }
 
@@ -120,8 +120,8 @@ namespace PaketUpgrader
 
                     var headRef = repository.Fork ? $"{repository.Owner.Login}:{branch}" : branch;
 
-                    var newPullRequest = new NewPullRequest("Update paket", headRef, repository.DefaultBranch);
-                    newPullRequest.Body = @":wave: Github disabled TLS 1.0 and TLS 1.1 on February 22nd, which affected Paket.
+                    var newPullRequest = new NewPullRequest("Update paket to address TLS deprecation", headRef, repository.DefaultBranch);
+                    newPullRequest.Body = @":wave: GitHub disabled TLS 1.0 and TLS 1.1 on February 22nd, which affected Paket.
 
 You can read more about this on the [GitHub Engineering blog](https://githubengineering.com/crypto-removal-notice/).
 
