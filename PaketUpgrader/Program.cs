@@ -64,10 +64,7 @@ namespace PaketUpgrader
                 return;
             }
 
-            if (result == PaketUpgrade.UpgradeNeeded)
-            {
-                await PerformUpgrade(owner, name);
-            }
+            await PerformUpgrade(owner, name);
         }
 
         private async Task<PaketUpgrade> Validate(string owner, string name)
@@ -103,7 +100,7 @@ namespace PaketUpgrader
             var openPullRequest = await HasOpenPullRequest(owner, name);
             if (openPullRequest != null)
             {
-                Console.WriteLine($"Found an open pull request to upgrade in {owner}/{name}, skipping...");
+                Console.WriteLine($"{owner}/{name} has an open pull request #{openPullRequest.Number}, skipping...");
             }
             else
             {
