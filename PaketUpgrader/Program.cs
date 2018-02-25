@@ -8,26 +8,6 @@ using System.Linq;
 
 namespace PaketUpgrader
 {
-    public enum PaketUpgrade
-    {
-        UpgradeNeeded,
-        NothingToDo,
-        RepositoryIsFork
-    }
-
-    class Options
-    {
-        public Options()
-        {
-            Repositories = Array.Empty<string>();
-        }
-
-        public string Token { get; set; }
-        public string[] Repositories { get; set; }
-        public string Account { get; set; }
-        public bool IncludeForks { get; internal set; }
-        public bool SubmitPullRequests { get; internal set; }
-    }
 
     class Program
     {
@@ -40,6 +20,18 @@ namespace PaketUpgrader
             }
 
             return File.ReadAllLines(path);
+        }
+
+        static void EmitHelpMessage(OptionSet options)
+        {
+            Console.WriteLine("Usage: paket-upgrader.exe [OPTIONS]");
+            Console.WriteLine("Scan a number of GitHub repositories to determine whether they are running an old version of Paket.");
+            Console.WriteLine("Specify an input file to read, or an account to scan for repositories to inspect.");
+            Console.WriteLine();
+
+            Console.WriteLine("Options:");
+            options.WriteOptionDescriptions(Console.Out);
+            return;
         }
 
         static void Main(string[] args)
@@ -56,7 +48,7 @@ namespace PaketUpgrader
                 { "submit-pull-request", "actually submit a PR to each of the repositories which are using an old version of Paket", (bool n) => o.SubmitPullRequests = true },
                 { "h|help", "show this message and exit", h => shouldShowHelp = h != null },
             };
-            
+
             List<string> extra;
             try
             {
@@ -75,7 +67,7 @@ namespace PaketUpgrader
                 // show some app description message
                 Console.WriteLine("Usage: paket-upgrader.exe [OPTIONS]");
                 Console.WriteLine("Scan a number of GitHub repositories to determine whether they are running an old version of Paket.");
-                Console.WriteLine("Specify either an input file to read, or an account to scan for repositories to inspect.");
+                Console.WriteLine("Specify an input file to read, or an account to scan for repositories to inspect.");
                 Console.WriteLine();
 
                 // output the options
@@ -96,44 +88,29 @@ namespace PaketUpgrader
                 return;
             }
 
-            Run(o).Wait();
-
-            Console.ReadKey();
-        }
-
-        static async Task Run(Options options)
-        {
             var client = new GitHubClient(new ProductHeaderValue("paket-ugprade-scanner"))
             {
-                Credentials = new Credentials(options.Token)
+                Credentials = new Credentials(o.Token)
             };
 
             var upgrader = new PaketUpgrader(client);
 
-
-            if (options.Repositories.Any())
+            if (o.Repositories.Any())
             {
-                foreach (var project in options.Repositories)
-                {
-                    await upgrader.Run(project, options.IncludeForks, options.SubmitPullRequests);
-                }
+                Task.WaitAll(o.Repositories.Select(r => upgrader.Run(r, o.IncludeForks, o.SubmitPullRequests)).ToArray());
             }
-            else if (!string.IsNullOrWhiteSpace(options.Account))
+            else if (!string.IsNullOrWhiteSpace(o.Account))
             {
-                var repos = await client.Repository.GetAllForUser(options.Account, new ApiOptions { PageSize = 100 });
-
+                var repos = client.Repository.GetAllForUser(o.Account, new ApiOptions { PageSize = 100 }).Result;
                 var projects = repos.Select(r => r.FullName).ToArray();
 
-                Console.WriteLine($"Found {projects.Length} repositories under the {options.Account} organization");
+                Console.WriteLine($"Found {projects.Length} repositories under the {o.Account} organization");
 
-                foreach (var project in projects)
-                {
-                    await upgrader.Run(project, options.IncludeForks, options.SubmitPullRequests);
-                }
+                Task.WaitAll(projects.Select(r => upgrader.Run(r, o.IncludeForks, o.SubmitPullRequests)).ToArray());
             }
             else
             {
-                Console.WriteLine("No work specified, exiting...");
+                EmitHelpMessage(options);
             }
         }
     }
