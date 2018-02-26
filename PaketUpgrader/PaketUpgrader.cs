@@ -82,7 +82,7 @@ namespace PaketUpgrader
 
             if (!submitPullRequest)
             {
-                Console.WriteLine($"{owner}/{name} requires update, but not performed");
+                Console.WriteLine($"{owner}/{name} requires update, but ignored");
                 return;
             }
 
