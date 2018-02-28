@@ -90,6 +90,11 @@ namespace PaketUpgrader
                 return;
             }
 
+            DoWork(o).Wait();
+        }
+
+        async static Task DoWork(Options o)
+        {
             var client = new GitHubClient(new ProductHeaderValue("paket-ugprade-scanner"))
             {
                 Credentials = new Credentials(o.Token)
@@ -102,80 +107,47 @@ namespace PaketUpgrader
                 Console.WriteLine($"Found {o.Repositories.Length} entries in file");
                 Console.WriteLine();
 
-                try
+                foreach (var repo in o.Repositories)
                 {
-                    var lookup = o.Repositories.Select(async r =>
+                    var parts = repo.Split('/');
+                    var owner = parts[0];
+                    var name = parts[1];
+                    try
                     {
-                        var parts = r.Split('/');
-                        var owner = parts[0];
-                        var name = parts[1];
-                        try
+                        var r = await Wrap.RateLimiting(client, c => c.Repository.Get(owner, name));
+
+                        if (!r.Fork || o.IncludeForks)
                         {
-                            return await client.Repository.Get(owner, name);
+                            await upgrader.Run(r, o.SubmitPullRequests, o.Debug);
                         }
-                        catch
-                        {
-                            Console.WriteLine($"Unable to find repository '{r}', skipping...");
-                            return null;
-                        }
-                    });
-
-                    var allRepos = Task.WhenAll(lookup).Result;
-
-                    var repos = allRepos
-                        .Where(r => r != null)
-                        .Select(r =>
-                        {
-                            if (!r.Fork || o.IncludeForks)
-                            {
-                                return r;
-                            }
-                            else
-                            {
-                                return null;
-                            }
-                        })
-                        .Where(r => r != null);
-
-                    var tasks = repos.Select(r => upgrader.Run(r, o.SubmitPullRequests, o.Debug)).ToArray();
-
-                    Task.WaitAll(tasks);
-
-                }
-                catch
-                {
-#if DEBUG
-                    if (!Debugger.IsAttached)
-                    {
-                        Debugger.Launch();
                     }
-#else
-                    throw ex;
+                    catch
+                    {
+                        Console.WriteLine($"Unable to find repository '{repo}', skipping...");
+#if DEBUG
+                        if (!Debugger.IsAttached)
+                        {
+                            Debugger.Launch();
+                        }
 #endif
+                    }
                 }
             }
             else if (!string.IsNullOrWhiteSpace(o.Account))
             {
-                var allRepos = client.Repository.GetAllForUser(o.Account, new ApiOptions { PageSize = 100 }).Result;
-                var repos = allRepos.Select(r =>
+                var allRepos = await Wrap.RateLimiting(client, c => c.Repository.GetAllForUser(o.Account, new ApiOptions { PageSize = 100 }));
+
+                foreach (var r in allRepos)
                 {
                     if (!r.Fork || o.IncludeForks)
                     {
-                        return r;
+                        await upgrader.Run(r, o.SubmitPullRequests, o.Debug);
                     }
-                    else
-                    {
-                        return null;
-                    }
-                }).Where(r => r != null).ToArray();
-
-                var tasks = repos.Select(r => upgrader.Run(r, o.SubmitPullRequests, o.Debug)).ToArray();
-
-                Task.WaitAll(tasks);
+                }
             }
             else
             {
-                EmitHelpMessage(options);
+                Console.WriteLine("Nothing to do, check your options with --help");
             }
         }
     }
