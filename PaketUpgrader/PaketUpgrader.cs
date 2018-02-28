@@ -8,6 +8,8 @@ using System.Threading.Tasks;
 
 namespace PaketUpgrader
 {
+
+
     public class PaketUpgrader
     {
         private GitHubClient client;
@@ -47,7 +49,7 @@ namespace PaketUpgrader
         {
             try
             {
-                var contents = await client.Repository.Content.GetAllContentsByRef(repository.Id, ".paket", repository.DefaultBranch);
+                var contents = await Wrap.RateLimiting(client, c => c.Repository.Content.GetAllContentsByRef(repository.Id, ".paket", repository.DefaultBranch));
                 var executables = contents.Where(c => c.Path.EndsWith(".exe"));
                 foreach (var executable in executables)
                 {
@@ -119,17 +121,17 @@ The update to Paket is explained here: https://github.com/fsprojects/Paket/pull/
 
 The work to update Paket in the wild is occurring here: https://github.com/fsprojects/Paket/issues/3068";
 
-            var pullRequest = await client.PullRequest.Create(owner, name, newPullRequest);
+            var pullRequest = await Wrap.RateLimiting(client, c => c.PullRequest.Create(owner, name, newPullRequest));
             return pullRequest;
         }
 
         async Task<PullRequest> HasOpenPullRequest(string owner, string name)
         {
-            var pullRequests = await client.PullRequest.GetAllForRepository(owner, name, new ApiOptions() { PageSize = 100 });
+            var pullRequests = await Wrap.RateLimiting(client, c => c.PullRequest.GetAllForRepository(owner, name, new ApiOptions() { PageSize = 100 }));
 
             foreach (var pullRequest in pullRequests)
             {
-                var files = await client.PullRequest.Files(owner, name, pullRequest.Number);
+                var files = await Wrap.RateLimiting(client, c => c.PullRequest.Files(owner, name, pullRequest.Number));
                 var updatesPaketToLatestVersion = files.FirstOrDefault(f =>
                     f.FileName == ".paket/paket.exe" && supportedPaketVersions.Contains(f.Sha)
                     || f.FileName == ".paket/paket.bootstrapper.exe" && supportedPaketVersions.Contains(f.Sha));
@@ -145,7 +147,7 @@ The work to update Paket in the wild is occurring here: https://github.com/fspro
 
         async Task<Repository> FindRepositoryToSubmitPullRequestFrom(string owner, string name)
         {
-            var repository = await client.Repository.Get(owner, name);
+            var repository = await Wrap.RateLimiting(client, c => c.Repository.Get(owner, name));
             if (repository.Permissions.Push)
             {
                 return repository;
@@ -156,7 +158,7 @@ The work to update Paket in the wild is occurring here: https://github.com/fspro
                 Type = RepositoryType.Owner
             };
 
-            var ownedRepos = await client.Repository.GetAllForCurrent(request, new ApiOptions() { PageSize = 100 });
+            var ownedRepos = await Wrap.RateLimiting(client, c => c.Repository.GetAllForCurrent(request, new ApiOptions() { PageSize = 100 }));
             var forks = ownedRepos.Where(r => r.Fork);
             var matchingNames = forks.Where(r => r.Name == name);
             var foundFork = matchingNames.FirstOrDefault();
@@ -168,7 +170,7 @@ The work to update Paket in the wild is occurring here: https://github.com/fspro
                 return foundFork;
             }
 
-            return await client.Repository.Forks.Create(owner, name, new NewRepositoryFork());
+            return await Wrap.RateLimiting(client, c => c.Repository.Forks.Create(owner, name, new NewRepositoryFork()));
         }
 
         async Task<string> GetNewExecutableBase64()
@@ -194,21 +196,21 @@ The work to update Paket in the wild is occurring here: https://github.com/fspro
                 Content = await GetNewExecutableBase64(),
                 Encoding = EncodingType.Base64
             };
-            var newBlob = await client.Git.Blob.Create(repository.Id, blob);
+            var newBlob = await Wrap.RateLimiting(client, c => c.Git.Blob.Create(repository.Id, blob));
 
             // we create the new reference for the PR branch
             var defaultRef = $"heads/{repository.DefaultBranch}";
-            var defaultBranch = await client.Git.Reference.Get(repository.Id, defaultRef);
+            var defaultBranch = await Wrap.RateLimiting(client, c => c.Git.Reference.Get(repository.Id, defaultRef));
             var initialSha = defaultBranch.Object.Sha;
 
             var newRef = $"heads/bootstrapper";
-            var newReference = await client.Git.Reference.Create(repository.Id, new NewReference(newRef, initialSha));
+            var newReference = await Wrap.RateLimiting(client, c => c.Git.Reference.Create(repository.Id, new NewReference(newRef, initialSha)));
 
-            var currentTree = await client.Git.Tree.Get(repository.Id, initialSha);
+            var currentTree = await Wrap.RateLimiting(client, c => c.Git.Tree.Get(repository.Id, initialSha));
 
             // update the paket subdirectory to assign the new blob to whatever executable
             var paketTreeNode = currentTree.Tree.FirstOrDefault(t => t.Path == ".paket");
-            var paketTree = await client.Git.Tree.Get(repository.Id, paketTreeNode.Sha);
+            var paketTree = await Wrap.RateLimiting(client, c => c.Git.Tree.Get(repository.Id, paketTreeNode.Sha));
 
             var executables = paketTree.Tree.Where(t => t.Path.EndsWith(".exe"));
 
@@ -232,7 +234,7 @@ The work to update Paket in the wild is occurring here: https://github.com/fspro
                 Type = executable.Type.Value
             });
 
-            var updatedPaketTree = await client.Git.Tree.Create(repository.Id, newPaketTree);
+            var updatedPaketTree = await Wrap.RateLimiting(client, c => c.Git.Tree.Create(repository.Id, newPaketTree));
 
             // update the root tree to use this new .paket directory
             var newRootTree = new NewTree
@@ -247,14 +249,14 @@ The work to update Paket in the wild is occurring here: https://github.com/fspro
                 Type = paketTreeNode.Type.Value
             });
 
-            var updatedRootTree = await client.Git.Tree.Create(repository.Id, newRootTree);
+            var updatedRootTree = await Wrap.RateLimiting(client, c => c.Git.Tree.Create(repository.Id, newRootTree));
 
             // create a new commit using the updated tree
             var newCommit = new NewCommit($"Updated {executable.Path} to address TLS 1.0 and 1.1 deprecation", updatedRootTree.Sha, initialSha);
-            var commit = await client.Git.Commit.Create(repository.Id, newCommit);
+            var commit = await Wrap.RateLimiting(client, c => c.Git.Commit.Create(repository.Id, newCommit));
 
             // then update the bootstrapper ref to this new commit
-            var updatedReference = await client.Git.Reference.Update(repository.Id, newRef, new ReferenceUpdate(commit.Sha));
+            var updatedReference = await Wrap.RateLimiting(client, c => c.Git.Reference.Update(repository.Id, newRef, new ReferenceUpdate(commit.Sha)));
 
             return updatedReference;
         }

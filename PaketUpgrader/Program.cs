@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 
 namespace PaketUpgrader
 {
-
     class Program
     {
         static string[] TryParseFile(string relativePath)
@@ -22,6 +21,7 @@ namespace PaketUpgrader
 
             return File.ReadAllLines(path);
         }
+
 
         static void EmitHelpMessage(OptionSet options)
         {
