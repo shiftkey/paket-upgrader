@@ -16,7 +16,7 @@ namespace PaketUpgrader
 
         private List<string> supportedPaketVersions = new List<string>
         {
-            "b98e000b232408fe0a21730e88f89755f0d7a68c", //
+            "b98e000b232408fe0a21730e88f89755f0d7a68c", // 5.142 official release
             "2b166849ff7703ca2569b2279bd2b6309ab61065", // reported good by @BlythMeister
             "cdd55e9c248b33768917cb5081606f461483a78c" // reported good by @BlythMeister
         };
